@@ -1,3 +1,4 @@
+# source code obtained from https://github.com/ENCODE-DCC/WranglerScripts
 from pic2str import pic2str
 import sys
 import re
@@ -7,8 +8,21 @@ from ENCODETools import FindGSpreadSheet
 from ENCODETools import FindGWorkSheet
 from ENCODETools import FindGSheetCells
 from ENCODETools import WriteJSON
-
+import os
+import mimetypes
 from identity import keys
+
+def get_data_uri(infile):
+	try:
+	     path = os.getcwd()+"/"+infile
+	     with open(path,"rb") as f:
+		data = f.read()
+		temp_uri = data.encode("base64").replace("\n", "")
+		mime_type = mimetypes.guess_type(path)
+		data_uri = {'href':temp_uri, 'type': str(mime_type[0])}#'data:' + str(mime_type[0]) + ';base64,' + temp_uri
+		return data_uri
+	except :
+		print sys.exc_info()[0] #>> sys.stderr, 'Cannot open input file'
 
 if __name__ == "__main__":
     '''
@@ -20,8 +34,8 @@ This script will read in a google spreadsheet of objects and save them to json
     email = "flyDCCuploads@gmail.com" # Stanford accounts won't work!
     password = "DCCuploads"
 
-    spreadname = sys.argv[1]
-    typelist = [sys.argv[2]]
+    spreadname = 'Fly_biosample_Characterization'  #sys.argv[1]
+    typelist = ['biosample_characterization'] #[sys.argv[2]]
 
     sheetclient = LoginGSheet(email,password)
 
@@ -61,6 +75,7 @@ This script will read in a google spreadsheet of objects and save them to json
                 for header in headers:
                     if object_schema[u'properties'].has_key(header):
                         value = row.custom[header.replace('_','').lower()].text
+			print value
                         if value is not None:
                             # need to fix dates before adding them. Google API does not allow disabling of autoformat.
                             # use regexp to check for dates (MM/DD/YYYY)
@@ -87,21 +102,19 @@ This script will read in a google spreadsheet of objects and save them to json
                                         pair = prop_value_pair.split(': ')
                                         sub_object[pair[0]] = pair[1]
                                     new_object.update({header: [sub_object]})
-                            #alec's to inport local file and convert to string
+                            # upload image as attachment object
                             elif object_schema[u'properties'][header][u'type'] == 'object':
                                 if header == 'attachment':
-                                    value = pic2str(value)                                  
-                                else:
-                                    value = value.split(', ')
-                                sub_object = dict()
-                                for prop_value_pair in value:
-                                    pair = prop_value_pair.split(': ')
-                                    pair[1] = pair[1].replace('\n','')                                    
-                                    #print pair
-                                    #raw_input()
-                                    sub_object[pair[0]] = pair[1]
-                                new_object.update({header: sub_object})
-                                print new_object
+				    sub_object = {}
+			            print 'filename' + str(value)
+                                    sub_object[u'href'] = get_data_uri(value)#image data
+				#remove @type for new_object
+				#print new_object
+				#if new_object.has_key(u'@type'):
+				#	del new_object[u'@type']
+				#print new_object
+				new_object.update({header: sub_object})
+    #                            print new_object
 #                                print object_schema[u'properties'][header][u'properties'][u'type']
 #                                if object_schema[u'properties'][header][u'properties'][u'type'] == 'string':  
 #                                    print object_schema[u'properties'][header][u'properties'][u'title'] + '\n'
